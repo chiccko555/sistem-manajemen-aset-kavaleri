@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         :root {
             --primary: #4b5320;
@@ -1959,8 +1960,11 @@
     </style>
 </head>
 <body>
+    <div id="app-preloader" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: var(--primary); z-index: 99999; display: flex; justify-content: center; align-items: center; color: white; font-size: 24px; transition: opacity 0.3s ease;">
+        <i class="fas fa-shield-alt fa-spin"></i> &nbsp; Memuat SMAK...
+    </div>
     <!-- LOGIN PAGE -->
-    <div id="loginPage" class="login-page">
+    <div id="loginPage" class="login-page" style="display: none;">
         <div class="login-card">
             <div class="login-logo">
                 <div class="login-logo-icon"><i class="fas fa-shield-alt"></i></div>
@@ -2457,7 +2461,7 @@
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                                     <h4 style="margin: 0;"><i class="fas fa-bomb"></i> Bekal Pokok (BKP) Terisi</h4>
                                     <div>
-                                        <button class="btn btn-warning btn-sm" onclick="openLaporTembak()"><i class="fas fa-fire"></i> Lapor Pemakaian</button>
+                                        <button class="btn btn-warning btn-sm" onclick="openLaporTembakRanpur()"><i class="fas fa-fire"></i> Lapor Pemakaian</button>
                                         <button class="btn btn-primary btn-sm" onclick="openLoadoutAmunisi()"><i class="fas fa-plus"></i> Isi Amunisi</button>
                                     </div>
                                 </div>
@@ -3170,7 +3174,12 @@
                     <div class="card">
                         <div class="card-header">
                             <h3 class="card-title">Manajemen Amunisi & Handak</h3>
-                            <button class="btn btn-primary btn-sm" onclick="openModal('modalTambahAmunisi')"><i class="fas fa-plus"></i> Terima Amunisi Baru</button>
+                            <div style="display: flex; gap: 8px;">
+                                <button class="btn btn-primary btn-sm" onclick="openTerimaAmunisi()">
+                                    <i class="fas fa-box-open"></i> Terima Amunisi
+                                </button>
+                                <button class="btn btn-warning btn-sm" onclick="openLaporTembakGlobal()"><i class="fas fa-fire"></i> Lapor Giat Tembak</button>
+                            </div>
                         </div>
                         <div class="card-body">
                             <div class="tabs">
@@ -3190,7 +3199,7 @@
                             <div class="tab-content" id="tab-history-tembak">
                                 <div class="table-container">
                                     <table class="table">
-                                        <thead><tr><th>Tanggal</th><th>Aset/Ranpur</th><th>Giat</th><th>Kaliber & Lot</th><th>Ditembakkan</th><th>Selongsong</th><th>Status</th></tr></thead>
+                                        <thead><tr><th>Tanggal</th><th>Aset/Ranpur</th><th>Giat</th><th>Kaliber & Lot</th><th>Ditembakkan</th><th>Selongsong</th><th>Status</th><th>Aksi</th></tr></thead>
                                         <tbody id="tableHistoryAmunisi"></tbody>
                                     </table>
                                 </div>
@@ -3228,7 +3237,7 @@
                                 <div class="form-row">
                                     <div class="form-group">
                                         <label class="form-label">Nomor Inventaris *</label>
-                                        <input type="text" class="form-control" id="asetNoInv" required placeholder="INV-2024-001">
+                                        <input type="text" class="form-control" id="asetNoInv" readonly style="background-color: var(--gray-200); font-weight: bold; color: var(--primary);">
                                     </div>
                                     <div class="form-group">
                                         <label class="form-label">Nomor Seri</label>
@@ -3313,11 +3322,11 @@
                                     </div>
                                 </div>
                                 
-                                <h4 style="margin: 24px 0 16px; color: var(--primary);"><i class="fas fa-images"></i> Foto & Dokumen</h4>
+                                <h4 style="margin: 24px 0 16px; color: var(--primary);"><i class="fas fa-images"></i> Foto</h4>
                                 <div class="form-group">
                                     <label class="form-label">Unggah Foto</label>
                                     <div class="file-upload" onclick="document.getElementById('asetFotoInput').click()">
-                                        <i class="fas fa-cloud-upload-alt file-upload-icon"></i>
+                                        <i class="fas fa-images file-upload-icon" style="color: var(--primary);"></i>
                                         <div class="file-upload-text">Klik untuk upload foto aset</div>
                                         <div class="file-upload-hint">Format: JPG, PNG (Max 5MB per file)</div>
                                         <input type="file" id="asetFotoInput" style="display: none;" accept="image/*" multiple onchange="handleFotoAset(event)">
@@ -3370,6 +3379,207 @@
     </style>
 
     <!-- ALL MODALS -->
+    <div class="modal" id="modalLaporTembak">
+        <div class="modal-content" style="max-width: 600px; border-top: 4px solid var(--danger);">
+            <div class="modal-header">
+                <h3 class="modal-title"><i class="fas fa-fire"></i> Laporan Giat Penembakan</h3>
+                <button class="modal-close" onclick="closeModal('modalLaporTembak')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="formLaporTembak">
+                    <input type="hidden" id="ltAsetId"> 
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Tanggal Kegiatan *</label>
+                            <input type="date" class="form-control" id="ltTanggal" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Nama Kegiatan (Giat) *</label>
+                            <input type="text" class="form-control" id="ltGiat" required placeholder="Contoh: Latbakjatrat Baturaja 2024">
+                        </div>
+                    </div>
+
+                    <div class="form-group" id="groupLtAsetSelect" style="display: none;">
+                        <label class="form-label">Aset / Ranpur yang Menembak *</label>
+                        <select class="form-control" id="ltAsetSelect" onchange="filterAmunisiByAset(this.value)">
+                        </select>
+                    </div>
+
+                    <div class="form-group" id="groupLtAsetReadonly">
+                        <label class="form-label">Aset / Ranpur yang Menembak</label>
+                        <input type="text" class="form-control" id="ltAsetNama" readonly style="background: var(--gray-100); font-weight: bold; color: var(--primary);">
+                    </div>
+
+                    <div class="form-group" style="background: var(--gray-50); padding: 12px; border-radius: 6px; border: 1px solid var(--gray-200);">
+                        <label class="form-label" style="color: var(--danger); font-weight: bold;"><i class="fas fa-bomb"></i> Amunisi BKP yang Digunakan *</label>
+                        <select class="form-control" id="ltAmunisi" required onchange="updateMaxPeluru()">
+                            <option value="">-- Pilih Aset Terlebih Dahulu --</option>
+                        </select>
+                        <small id="ltInfoAmunisi" style="color: var(--info); display: none; margin-top: 5px; font-weight: bold;">
+                            <i class="fas fa-check-circle"></i> Tersedia di Ranpur: <span id="ltMaxPeluru">0</span> butir
+                        </small>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label" style="color: var(--danger);">Jumlah Ditembakkan *</label>
+                            <input type="number" class="form-control" id="ltDitembakkan" min="1" required placeholder="0" oninput="sinkronSelongsong()">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" style="color: var(--warning);">Selongsong Kembali *</label>
+                            <input type="number" class="form-control" id="ltSelongsong" min="0" required placeholder="0" oninput="cekWarningSelongsong(true)">
+                            <small style="color: var(--danger); display: none; margin-top: 5px; font-weight: bold;" id="ltWarningSelongsong">
+                                <i class="fas fa-exclamation-circle"></i> Selongsong kurang! Memicu investigasi.
+                            </small>
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-top: 10px; border-top: 1px dashed var(--gray-300); padding-top: 15px;">
+                        <label class="form-label"><i class="fas fa-camera"></i> Upload Bukti Selongsong (Opsional)</label>
+                        <input type="file" class="form-control" accept="image/*" onchange="previewFotoSelongsong(event)">
+                        <div id="ltFotoPreview" style="margin-top: 10px; max-width: 150px; display: none;">
+                            <img src="" style="width: 100%; border-radius: 6px; border: 2px solid var(--gray-300);" id="ltFotoImg">
+                        </div>
+                        <input type="hidden" id="ltFotoBase64">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('modalLaporTembak')">Batal</button>
+                <button class="btn btn-danger" onclick="saveLaporTembak()"><i class="fas fa-fire"></i> Lapor & Potong BKP</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="modalTerimaAmunisi">
+        <div class="modal-content" style="max-width: 650px;">
+            <div class="modal-header">
+                <h3 class="modal-title"><i class="fas fa-box-open"></i> Penerimaan Amunisi (BKP)</h3>
+                <button class="modal-close" onclick="closeModal('modalTerimaAmunisi')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="formTerimaAmunisi">
+                    <div class="alert alert-info" style="margin-bottom: 16px;">
+                        <i class="fas fa-info-circle"></i> Catat penerimaan dropping amunisi baru atau tambahan stok untuk lot yang sudah ada.
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Jenis Penerimaan *</label>
+                        <select class="form-control" id="amuJenisInput" onchange="toggleAmunisiInput()">
+                            <option value="existing">Tambah Stok (Kaliber & Lot Sudah Ada)</option>
+                            <option value="new">Register Amunisi Baru (Kaliber/Lot Baru)</option>
+                        </select>
+                    </div>
+
+                    <div id="amuExistingGroup" style="background: var(--gray-50); padding: 12px; border-radius: 6px; border: 1px solid var(--gray-200); margin-bottom: 15px;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" style="color: var(--primary);">Pilih Data Amunisi *</label>
+                            <select class="form-control" id="amuSelectExisting">
+                                </select>
+                        </div>
+                    </div>
+
+                    <div id="amuNewGroup" style="display: none; background: var(--gray-50); padding: 12px; border-radius: 6px; border: 1px solid var(--gray-200); margin-bottom: 15px;">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label" style="color: var(--primary);">Kaliber *</label>
+                                <input type="text" class="form-control" id="amuKaliber" placeholder="Contoh: 120mm Smoothbore">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" style="color: var(--primary);">Nomor Lot *</label>
+                                <input type="text" class="form-control" id="amuLot" placeholder="Contoh: Pindad-2024-01">
+                            </div>
+                        </div>
+                        <div class="form-row" style="margin-bottom: 0;">
+                            <div class="form-group">
+                                <label class="form-label" style="color: var(--primary);">Tipe Amunisi *</label>
+                                <select class="form-control" id="amuTipe">
+                                    <option value="HE">HE (High Explosive)</option>
+                                    <option value="APFSDS">APFSDS (Armor-Piercing)</option>
+                                    <option value="HEAT">HEAT</option>
+                                    <option value="Blank">Hampa / Blank</option>
+                                    <option value="Munisi Kecil">Peluru Tajam (Pistol/Senapan)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" style="color: var(--primary);">Kompatibilitas Ranpur</label>
+                                <input type="text" class="form-control" id="amuKompatibilitas" placeholder="Contoh: Leopard 2A4, Marder">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Jumlah Diterima (Butir) *</label>
+                            <input type="number" class="form-control" id="amuJumlah" min="1" required placeholder="0">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Tanggal Terima *</label>
+                            <input type="date" class="form-control" id="amuTanggal" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Sumber / Asal Dropping *</label>
+                        <input type="text" class="form-control" id="amuSumber" required placeholder="Contoh: Dropping Paldam, Hibah, DO Gudpus...">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('modalTerimaAmunisi')">Batal</button>
+                <button class="btn btn-primary" onclick="saveTerimaAmunisi()"><i class="fas fa-save"></i> Simpan ke Gudang</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="modalSelesaikanInvestigasi">
+        <div class="modal-content" style="max-width: 550px; border-top: 4px solid var(--warning);">
+            <div class="modal-header">
+                <h3 class="modal-title"><i class="fas fa-search"></i> Tindak Lanjut Investigasi</h3>
+                <button class="modal-close" onclick="closeModal('modalSelesaikanInvestigasi')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="formSelesaikanInvestigasi">
+                    <input type="hidden" id="invHistoryId">
+                    <div style="background: #fff3cd; border-left: 5px solid #ffc107; padding: 16px; border-radius: 8px; margin-bottom: 20px; display: flex; align-items: flex-start; gap: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+                        <div style="color: #856404; font-size: 28px; margin-top: 2px;">
+                            <i class="fas fa-exclamation-circle"></i>
+                        </div>
+                        <div>
+                            <h4 style="margin: 0 0 6px 0; color: #856404; font-size: 15px; font-weight: 700;">Status: Membutuhkan Investigasi</h4>
+                            <p style="margin: 0; color: #664d03; font-size: 14px; line-height: 1.6;">
+                                Telah ditemukan selisih sebanyak 
+                                <strong id="invDiff" style="color: #dc3545; font-size: 15px; background: #f8d7da; padding: 3px 8px; border-radius: 4px; margin: 0 4px; border: 1px solid #f5c2c7;">0</strong> 
+                                keping selongsong pada kegiatan 
+                                <strong id="invGiat" style="color: #212529; font-weight: 700; background: #e2e3e5; padding: 3px 8px; border-radius: 4px; margin: 0 4px;">Nama Giat</strong>.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Hasil Investigasi / Tindakan *</label>
+                        <select class="form-control" id="invHasil" required onchange="toggleInvCatatan()">
+                            <option value="">Pilih Hasil Tindakan</option>
+                            <option value="ditemukan">Selongsong Berhasil Ditemukan</option>
+                            <option value="hilang_bap">Dinyatakan Hilang (Selesai BAP)</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="invJumlahDitemukanGroup" style="display: none; background: var(--gray-50); padding: 12px; border-radius: 6px; border: 1px solid var(--gray-200);">
+                        <label class="form-label" style="color: var(--primary);">Berapa keping yang ditemukan?</label>
+                        <input type="number" class="form-control" id="invJumlahDitemukan" min="1" placeholder="0">
+                    </div>
+                    <div class="form-group" style="margin-top: 15px;">
+                        <label class="form-label">Catatan / Referensi Surat BAP *</label>
+                        <textarea class="form-control" id="invCatatan" rows="3" required placeholder="Contoh: Ditemukan tertimbun lumpur di sektor C, atau merujuk Surat BAP No. 123/BAP/2024..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('modalSelesaikanInvestigasi')">Batal</button>
+                <button class="btn btn-primary" onclick="saveSelesaikanInvestigasi()"><i class="fas fa-check-double"></i> Tutup Kasus</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal Tambah Aset -->
      <div class="modal" id="modalQR">
         <div class="modal-content" style="max-width: 400px; text-align: center;">
@@ -3731,7 +3941,11 @@
                             <select class="form-control" id="woTeknisi" required>
                                 <option value="">Pilih Teknisi</option>
                                 <option value="Sertu Joko">Sertu Joko</option>
-                                <option value="Sertu Budi">Sertu Budi</option>
+                                <option value="Sertu Budi">Sertu Bobi</option>
+                                <option value="Sertu Budi">Sertu Giban</option>
+                                <option value="Sertu Budi">Sertu Wowi</option>
+                                <option value="Sertu Budi">Sertu Wowo</option>
+                                <option value="Sertu Budi">Sertu Towo</option>
                             </select>
                         </div>
                         <div class="form-group">
@@ -4030,24 +4244,6 @@
         </div>
     </div>
 
-    <div class="modal" id="modalLaporTembak">
-        <div class="modal-content" style="max-width: 600px; border-top: 4px solid var(--danger);">
-            <div class="modal-header"><h3 class="modal-title"><i class="fas fa-fire"></i> Laporan Pertanggungjawaban Penembakan</h3><button class="modal-close" onclick="closeModal('modalLaporTembak')">&times;</button></div>
-            <div class="modal-body">
-                <form id="formLaporTembak">
-                    <div class="form-group"><label class="form-label">Amunisi yang Digunakan *</label><select class="form-control" id="tembakLoadoutId" required></select></div>
-                    <div class="form-group"><label class="form-label">Nama Kegiatan / Giat *</label><input type="text" class="form-control" id="tembakGiat" required placeholder="Contoh: Latbakjatrat Baturaja 2024"></div>
-                    <div class="form-row">
-                        <div class="form-group"><label class="form-label" style="color: var(--danger);">Jumlah Ditembakkan *</label><input type="number" class="form-control" id="tembakKeluar" required></div>
-                        <div class="form-group"><label class="form-label" style="color: var(--warning);">Selongsong Terkumpul *</label><input type="number" class="form-control" id="tembakSelongsong" required></div>
-                    </div>
-                    <p style="font-size: 11px; color: var(--gray-600);">*Jika jumlah selongsong kurang dari jumlah ditembakkan, sistem akan memberikan flag investigasi otomatis.</p>
-                </form>
-            </div>
-            <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('modalLaporTembak')">Batal</button><button class="btn btn-danger" onclick="saveLaporTembak()">Kirim Laporan</button></div>
-        </div>
-    </div>
-
     <!-- TOAST CONTAINER -->
     <div class="toast-container" id="toastContainer"></div>
 
@@ -4132,6 +4328,13 @@
                     <div class="alert alert-info" style="margin-bottom: 16px;">
                         <i class="fas fa-info-circle"></i> Catat tindakan perbaikan dan suku cadang yang terpakai. Status WO akan berubah menjadi <strong>Menunggu Verifikasi (Pending QC)</strong>.
                     </div>
+
+                    <div class="form-group" id="woChecklistContainer" style="display: none; background: var(--gray-50); padding: 15px; border-radius: 6px; border-left: 4px solid var(--info); margin-bottom: 15px;">
+                        <label style="color: var(--primary-dark); margin-bottom: 10px; display: block;">
+                            <i class="fas fa-tasks"></i> SOP Inspeksi Wajib <span id="woChecklistCategory" style="font-weight: bold; color: var(--info);"></span>
+                        </label>
+                        <div id="woChecklistItems" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;"></div>
+                    </div>
                     
                     <div class="form-row">
                         <div class="form-group">
@@ -4165,6 +4368,82 @@
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeModal('modalSelesaikanWO')">Batal</button>
                 <button type="button" class="btn btn-primary" onclick="submitPenyelesaianWO(event)"><i class="fas fa-paper-plane"></i> Submit Laporan</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="modalLaporTembakGlobal">
+        <div class="modal-content" style="max-width: 600px; border-top: 4px solid var(--warning);">
+            <div class="modal-header">
+                <h3 class="modal-title"><i class="fas fa-fire"></i> Lapor Giat Penembakan (Global)</h3>
+                <button class="modal-close" onclick="closeModal('modalLaporTembakGlobal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="formLaporTembakGlobal">
+                    <div class="form-row">
+                        <div class="form-group"><label>Tanggal *</label><input type="date" class="form-control" id="ltgTanggal" required></div>
+                        <div class="form-group"><label>Kegiatan *</label><input type="text" class="form-control" id="ltgGiat" required></div>
+                    </div>
+                    <div class="form-group">
+                        <label>Pilih Aset / Ranpur *</label>
+                        <select class="form-control" id="ltgAset" onchange="filterAmunisiGlobal(this.value)"></select>
+                    </div>
+                    <div class="form-group" style="background: var(--gray-50); padding: 12px; border-radius: 6px;">
+                        <label style="color: var(--danger);"><i class="fas fa-bomb"></i> Amunisi BKP Ranpur *</label>
+                        <select class="form-control" id="ltgAmunisi" required><option value="">-- Pilih Aset Dulu --</option></select>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Ditembakkan *</label><input type="number" class="form-control" id="ltgDitembakkan" min="1" required></div>
+                        <div class="form-group"><label>Selongsong Kembali *</label><input type="number" class="form-control" id="ltgSelongsong" min="0" required></div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('modalLaporTembakGlobal')">Batal</button>
+                <button class="btn btn-danger" onclick="saveLaporTembakGlobal()"><i class="fas fa-fire"></i> Lapor</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="modalLaporTembakRanpur">
+        <div class="modal-content" style="max-width: 600px; border-top: 4px solid var(--danger);">
+            <div class="modal-header">
+                <h3 class="modal-title"><i class="fas fa-crosshairs"></i> Lapor Pemakaian BKP Ranpur</h3>
+                <button class="modal-close" onclick="closeModal('modalLaporTembakRanpur')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="formLaporTembakRanpur">
+                    <input type="hidden" id="ltrAsetId">
+                    <div class="form-row">
+                        <div class="form-group"><label>Tanggal *</label><input type="date" class="form-control" id="ltrTanggal" required></div>
+                        <div class="form-group"><label>Kegiatan *</label><input type="text" class="form-control" id="ltrGiat" required></div>
+                    </div>
+                    <div class="form-group">
+                        <label>Nama Ranpur</label>
+                        <input type="text" class="form-control" id="ltrAsetNama" readonly style="background: var(--gray-200); font-weight: bold; color: var(--primary);">
+                    </div>
+                    <div class="form-group" style="background: var(--gray-50); padding: 12px; border-radius: 6px;">
+                        <label style="color: var(--danger);"><i class="fas fa-bomb"></i> Amunisi BKP Ranpur *</label>
+                        <select class="form-control" id="ltrAmunisi" required onchange="updateMaxPeluruRanpur()"></select>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Ditembakkan *</label>
+                            <input type="number" class="form-control" id="ltrDitembakkan" min="1" required oninput="sinkronSelongsongRanpur()">
+                        </div>
+                        <div class="form-group">
+                            <label>
+                                Selongsong Kembali *
+                                <i class="fas fa-info-circle" style="color: var(--warning); cursor: help; margin-left: 5px;" title="Jika jumlah selongsong kurang dari jumlah ditembakkan, sistem akan memberikan flag investigasi otomatis."></i>
+                            </label>
+                            <input type="number" class="form-control" id="ltrSelongsong" min="0" required oninput="cekWarningSelongsongRanpur(true)">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('modalLaporTembakRanpur')">Batal</button>
+                <button class="btn btn-danger" onclick="saveLaporTembakRanpur()"><i class="fas fa-fire"></i> Potong BKP</button>
             </div>
         </div>
     </div>
@@ -5215,6 +5494,9 @@
                     initRealMap();
                 }
             }, 200);
+            if (typeof renderPreventiveAlerts === 'function') {
+                renderPreventiveAlerts();
+            }
         }
 
         // ============================================
@@ -5344,6 +5626,11 @@
             
             const form = document.getElementById('formAset');
             if (form) form.reset();
+
+            const inputNoInv = document.getElementById('asetNoInv');
+            if (inputNoInv) {
+                inputNoInv.value = generateNomorInventaris();
+            }
             
             // Ubah judul khusus mode Tambah
             const pageTitle = document.getElementById('pageFormAsetTitle');
@@ -5454,7 +5741,7 @@
                     </p>
                     <div style="display: flex; justify-content: center; gap: 12px;">
                         <button id="btnBatalHapus" style="padding: 10px 20px; background: #555; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">Batal</button>
-                        <button id="btnGasHapus" style="padding: 10px 20px; background: var(--danger, #e53e3e); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;"><i class="fas fa-trash"></i> Ya, Hapus</button>
+                        <button id="btnGasHapus" style="padding: 10px 20px; background: var(--danger, #e53e3e); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;"><i class="fas fa-trash"></i> Ya</button>
                     </div>
                 </div>
             </div>
@@ -5468,7 +5755,7 @@
                 document.getElementById('superModalHapus').remove(); // Langsung hancurkan modalnya
             };
 
-            // 6. Fungsi jika komandan klik "Ya, Hapus"
+            // 6. Fungsi jika komandan klik "Ya"
             document.getElementById('btnGasHapus').onclick = function() {
                 // Hancurkan modalnya dulu
                 document.getElementById('superModalHapus').remove();
@@ -5497,8 +5784,15 @@
         }
 
         function editAset(id) {
-            const a = DB.assets.find(x => x.id == id);
-            if (!a) return;
+            const a = DB.assets.find(x => x.id === id); // Di kodingan Anda mungkin pakai variabel 'a' atau 'aset'
+            if (a) {
+                // ==========================================
+                // VALIDASI: KUNCI EDIT JIKA BUKAN TERSEDIA
+                // ==========================================
+                if (a.status !== 'tersedia' && a.status !== 'aktif') {
+                    showToast(`Ditolak! Kendaraan tidak bisa diedit karena berstatus: ${a.status.replace('_', ' ').toUpperCase()}`, 'error');
+                    return; 
+                }
             const pageTitle = document.getElementById('pageFormAsetTitle');
             if (pageTitle) pageTitle.innerHTML = '<i class="fas fa-edit"></i> Edit Data Aset';
 
@@ -5540,7 +5834,7 @@
                 if (prevIzin) prevIzin.innerHTML = a.dokumen && a.dokumen.izin ? `<i class="fas fa-save" style="color:var(--gray-500);"></i> Tersimpan: ${a.dokumen.izin.name}` : '';
 
             }, 100); 
-        }
+        }}
 
         function viewDetailAset(id) {
             currentDetailAsetId = id;
@@ -5896,6 +6190,63 @@
                 }
             });
         }
+
+        // ==========================================
+        // FUNGSI AUTO-GENERATE NOMOR INVENTARIS
+        // ==========================================
+        function generateNomorInventaris() {
+            const tahunIni = new Date().getFullYear();
+            const prefix = `INV-${tahunIni}-`;
+            let maxUrutan = 0;
+
+            // Cari nilai urutan tertinggi di tahun ini
+            if (DB.assets && DB.assets.length > 0) {
+                DB.assets.forEach(aset => {
+                    // Cek no_inventaris atau noInv
+                    const noInv = aset.no_inventaris || aset.noInv || '';
+                    
+                    if (noInv.startsWith(prefix)) {
+                        const parts = noInv.split('-');
+                        if (parts.length >= 3) {
+                            const angka = parseInt(parts[2]);
+                            if (!isNaN(angka) && angka > maxUrutan) {
+                                maxUrutan = angka;
+                            }
+                        }
+                    }
+                });
+            }
+
+            // Kembalikan prefix + urutan selanjutnya
+            return `${prefix}${maxUrutan + 1}`;
+        }
+        const SOP_INSPEKSI = {
+            'ranpur': [
+                'Cek Sistem Kelistrikan & Baterai',
+                'Cek Tekanan Oli Mesin',
+                'Cek Sistem Hidrolik Turret',
+                'Cek Ketegangan Rantai / Roda',
+                'Cek Sistem Pengereman',
+                'Cek Radio Komunikasi'
+            ],
+            'senjata': [
+                'Pembersihan Laras (Bore Clear)',
+                'Cek Mekanisme Pelatuk',
+                'Cek Sistem Pengunci (Safety)',
+                'Pelumasan Bagian Bergerak'
+            ],
+            'kendaraan_dukung': [
+                'Cek Oli Mesin & Transmisi',
+                'Cek Sistem Rem & Suspensi',
+                'Cek Kelistrikan & Lampu',
+                'Cek Tekanan Angin Ban'
+            ],
+            'default': [
+                'Pembersihan Fisik Aset',
+                'Pengecekan Fungsi Kelayakan Bawaan',
+                'Pelumasan Standar'
+            ]
+        };
 
         // ============================================
         // PERSONIL FUNCTIONS
@@ -6411,6 +6762,10 @@
             if (!asetId || !tujuan || !tanggal || !alasan) { showToast('Field wajib harus diisi', 'error'); return; }
             
             const asset = DB.assets.find(a => a.id == asetId);
+                    if (asset.status === 'dalam_perbaikan' || asset.kondisi === 'maintenance' || asset.kondisi === 'rusak_berat') {
+                showToast('Ditolak! Kendaraan tidak bisa dimutasi karena sedang dalam Perbaikan / Rusak.', 'error');
+                return; 
+            }
             const newId = DB.mutations.length > 0 ? Math.max(...DB.mutations.map(m => m.id)) + 1 : 1;
             
             // Rakit Nama Bersih untuk Data Mutasi
@@ -6687,7 +7042,7 @@
             } else {
                 // Default (danger / hapus)
                 btnAction.className = 'btn btn-danger';
-                btnAction.innerHTML = '<i class="fas fa-trash"></i> Ya, Hapus';
+                btnAction.innerHTML = '<i class="fas fa-trash"></i> Ya';
                 iconEl.style.background = 'var(--danger)';
                 iconEl.innerHTML = '<i class="fas fa-exclamation-triangle"></i>';
             }
@@ -6848,6 +7203,10 @@
         function createWOForAsset(asetId) {
             const aset = DB.assets.find(a => a.id == asetId);
             const namaAset = aset ? aset.nama : 'aset ini';
+            if (aset && aset.status === 'proses_mutasi') {
+                showToast(`Ditolak! ${namaAset} tidak bisa di-maintenance karena sedang Proses Mutasi.`, 'error');
+                return;
+            }
             
             showConfirm('Proses ke Work Order', `Buat dokumen Work Order untuk <strong>${namaAset}</strong>?`, () => {
                 openModal('modalWO');
@@ -6877,6 +7236,10 @@
 
             const asset = DB.assets.find(a => a.id == asetId);
             if (!asset) return;
+            if (asset.status === 'proses_mutasi') {
+            showToast('Ditolak! Kendaraan tidak bisa di-maintenance karena sedang Proses Mutasi.', 'error');
+            return;
+            }
 
             // Otomatis ubah kondisi aset menjadi maintenance
             asset.kondisi = 'maintenance';
@@ -7020,6 +7383,33 @@
                 document.getElementById('woKomponenList').innerHTML = '';
                 document.getElementById('woKomponenKosong').style.display = 'block';
                 openModal('modalSelesaikanWO');
+
+                // ==========================================
+                // LOGIKA MEMUNCULKAN CHECKLIST SOP
+                // ==========================================
+                const checklistContainer = document.getElementById('woChecklistContainer');
+                const checklistItems = document.getElementById('woChecklistItems');
+                const checklistCategory = document.getElementById('woChecklistCategory');
+
+                // PERBAIKAN: Kita cari dulu data Aset-nya berdasarkan Work Order ini!
+                const aset = DB.assets.find(a => a.id == w.asetId);
+
+                if (checklistContainer && aset) {
+                    const kategori = aset.kategori ? aset.kategori.toLowerCase() : 'default';
+                    const sops = SOP_INSPEKSI[kategori] || SOP_INSPEKSI['default'];
+                    
+                    checklistCategory.innerText = `(${kategori.toUpperCase()})`;
+                    
+                    // Gambar checkbox-nya
+                    checklistItems.innerHTML = sops.map((sop, idx) => `
+                        <label style="display: flex; align-items: flex-start; gap: 8px; font-size: 13px; font-weight: normal; cursor: pointer; margin: 0;">
+                            <input type="checkbox" class="wo-sop-checkbox" value="${sop}" style="margin-top: 3px;">
+                            <span style="line-height: 1.4;">${sop}</span>
+                        </label>
+                    `).join('');
+                    
+                    checklistContainer.style.display = 'block';
+                }
             }, 'success');
         }
 
@@ -7041,33 +7431,62 @@
             if(event) event.preventDefault();
             const id = document.getElementById('selesaikanWOId').value;
             const tgl = document.getElementById('woTanggalSelesai').value;
-            const catatan = document.getElementById('woCatatan').value;
+            const catatanLaporan = document.getElementById('woCatatan').value; 
             
-            if(!tgl || !catatan) { showToast('Tanggal dan Diagnosa wajib diisi!', 'warning'); return; }
+            if(!tgl || !catatanLaporan) {
+                showToast('Tanggal dan Diagnosa wajib diisi!', 'warning');
+                return;
+            }
             
             let usedParts = [], stokAman = true;
             document.querySelectorAll('.wo-komponen-row').forEach(row => {
-                const partId = row.querySelector('.part-select').value, qty = parseInt(row.querySelector('.part-qty').value);
+                const partId = row.querySelector('.part-select').value,
+                    qty = parseInt(row.querySelector('.part-qty').value);
                 if(partId && qty > 0) {
                     const comp = DB.components.find(c => c.id == partId);
                     if(comp) {
-                        if(comp.stok < qty) { showToast(`Stok ${comp.nama} tidak cukup!`, 'error'); stokAman = false; } 
-                        else { usedParts.push({ id: comp.id, nama: comp.nama, qty: qty }); }
+                        if(comp.stok < qty) {
+                            showToast(`Stok ${comp.nama} tidak cukup!`, 'error');
+                            stokAman = false;
+                        } else {
+                            usedParts.push({ id: comp.id, nama: comp.nama, qty: qty });
+                        }
                     }
                 }
             });
             
             if(!stokAman) return;
             
-            usedParts.forEach(up => { const comp = DB.components.find(c => c.id == up.id); if(comp) comp.stok -= up.qty; });
-            
+            // Potong Stok
+            usedParts.forEach(up => {
+                const comp = DB.components.find(c => c.id == up.id);
+                if(comp) comp.stok -= up.qty;
+            });
+
+            // PERBAIKAN: Ambil nilai SOP Checklist yang dicentang
+            const checkedSOPs = Array.from(document.querySelectorAll('.wo-sop-checkbox:checked')).map(cb => cb.value);
+            let sopText = '';
+            if (checkedSOPs.length > 0) {
+                sopText = `\n\n[SOP Inspeksi Diselesaikan]:\n✓ ` + checkedSOPs.join('\n✓ ');
+            }
+
             const w = DB.workOrders.find(x => x.id == id);
             if(w) {
-                w.status = 'pending_qc'; w.catatan = catatan; w.tanggalSelesai = tgl; w.usedParts = usedParts;
-                addAuditLog(currentUser ? currentUser.username : 'System', 'UPDATE', 'maintenance', `Laporan WO: ${w.number}`);
+                w.status = 'pending_qc';
+                
+                // PERBAIKAN: Gabungkan catatan mekanik dengan hasil checklist SOP!
+                w.catatan = catatanLaporan + sopText; 
+                
+                w.tanggalSelesai = tgl;
+                w.usedParts = usedParts;
+                if(typeof addAuditLog === 'function') addAuditLog(currentUser ? currentUser.username : 'System', 'UPDATE', 'maintenance', `Laporan WO: ${w.number}`);
                 showToast('Laporan tersimpan. Menunggu QC.', 'success');
             }
-            saveData(); closeModal('modalSelesaikanWO'); renderMaintenance(); renderKomponen();
+
+            saveData();
+            closeModal('modalSelesaikanWO');
+            renderMaintenance();
+            renderKomponen();
         }
 
         function approveQC(id) {
@@ -7236,8 +7655,47 @@
                 <td>${c.stokMin}</td>
                 <td>${c.stokMin * 5}</td>
                 <td><span class="badge badge-${c.stok <= c.stokMin ? 'danger' : 'success'}">${c.stok <= c.stokMin ? 'Minimum' : 'Aman'}</span></td>
-                <td><button class="btn btn-secondary btn-sm"><i class="fas fa-edit"></i></button></td>
+                <td><button class="btn btn-success btn-sm" onclick="restockKomponen(${c.id})"><i class="fas fa-plus-circle"></i> Restock</button></td>
             </tr>`).join('');
+        }
+
+        function restockKomponen(id) {
+            const c = DB.components.find(x => x.id == id);
+            if(c) {
+                // Menggunakan sistem dialog bawaan Anda
+                showConfirm(
+                    'Restock Suku Cadang', 
+                    `Masukkan jumlah barang masuk untuk <strong>${c.nama}</strong>:<br><br>
+                    <input type="number" id="inputRestockQty" class="form-control" placeholder="Jumlah masuk..." min="1">`, 
+                    () => {
+                        const qty = parseInt(document.getElementById('inputRestockQty').value);
+                        if(qty && qty > 0) {
+                            c.stok += qty; // Tambah stok gudang
+                            
+                            // Catat ke riwayat komponen
+                            const historyId = DB.componentHistory.length > 0 ? Math.max(...DB.componentHistory.map(h => h.id)) + 1 : 1;
+                            DB.componentHistory.unshift({
+                                id: historyId,
+                                komponenId: c.id,
+                                asetId: null, // Null karena masuk ke gudang, bukan ke Panser
+                                action: 'restock',
+                                tanggal: new Date().toISOString().split('T')[0],
+                                keterangan: `Restock gudang: +${qty} unit`
+                            });
+
+                            showToast(`Berhasil menambah ${qty} stok ${c.nama}`, 'success');
+                            saveData();
+                            renderKomponen(); // Refresh tampilan
+                        } else {
+                            showToast('Jumlah tidak valid', 'error');
+                        }
+                    }
+                );
+                setTimeout(() => {
+                    const input = document.getElementById('inputRestockQty');
+                    if(input) input.focus();
+                }, 100);
+            }
         }
 
         function renderRiwayatKomponen() {
@@ -7249,12 +7707,20 @@
             container.innerHTML = DB.componentHistory.map(h => {
                 const comp = DB.components.find(c => c.id === h.komponenId);
                 const asset = DB.assets.find(a => a.id === h.asetId);
+                
+                // Deteksi jenis aksi untuk pewarnaan
+                let actionLabel = '';
+                if (h.action === 'install') actionLabel = '<span style="color: var(--danger);"><i class="fas fa-arrow-down"></i> Keluar (Dipakai)</span>';
+                else if (h.action === 'remove') actionLabel = '<span style="color: var(--warning);"><i class="fas fa-tools"></i> Dilepas</span>';
+                else if (h.action === 'restock') actionLabel = '<span style="color: var(--success);"><i class="fas fa-arrow-up"></i> Masuk (Restock)</span>';
+                
+                let target = asset ? `pada ${asset.nama}` : 'ke Gudang';
+
                 return `<div class="timeline-item">
                     <div class="timeline-date">${h.tanggal}</div>
                     <div class="timeline-content">
-                        <strong>${h.action === 'install' ? 'Pasang' : 'Lepas'}</strong>: ${comp?.nama || 'Unknown'}
-                        <br>di ${asset?.nama || 'Unknown'}
-                        <br>${h.keterangan || ''}
+                        <strong>${actionLabel}</strong>: ${comp?.nama || 'Unknown'} <br>${target}
+                        <br><small style="color: var(--gray-500);">${h.keterangan || ''}</small>
                     </div>
                 </div>`;
             }).join('');
@@ -8056,12 +8522,199 @@
         }
 
         function exportChart() { showToast('Exporting chart...', 'info'); setTimeout(() => { showToast('Exported!', 'success'); }, 1000); }
-        function downloadTemplate() { showToast('Downloading...', 'info'); setTimeout(() => { showToast('Downloaded!', 'success'); }, 1000); }
-        function handleFileSelect(event) { const file = event.target.files[0]; if (file) { showToast(`File selected: ${file.name}`, 'info'); } }
-        function processImport() { showLoading('Processing...', 0); setTimeout(() => { showLoading('Validating...', 50); setTimeout(() => { hideLoading(); closeModal('modalImport'); closeModal('modalImportPersonil'); showToast('Import success!', 'success'); addAuditLog(currentUser.username, 'IMPORT', 'aset', 'Import Excel'); renderAset(); renderPersonil(); renderDashboard(); }, 1000); }, 1000); }
-        // ============================================
+        // Variabel global untuk menyimpan file yang di-upload sementara
+        let selectedImportFile = null;
+
+        // 1. Fungsi Download Template (CSV)
+        function downloadTemplate() {
+            const isModalPersonil = document.getElementById('modalImportPersonil') && document.getElementById('modalImportPersonil').classList.contains('active');
+            let headers, sampleData, filename;
+
+            if (isModalPersonil) {
+                headers = "NRP,Nama_Lengkap,Pangkat,Jabatan,Satuan,Status\n";
+                sampleData = "11223344,Sertu Import Personil,Bintara,Mekanik,Kodim 0501,aktif\n";
+                filename = "Template_Import_Personel.csv";
+            } else {
+                // PENAMBAHAN 4 KOLOM BARU DI SINI
+                headers = "Nama_Aset,Kategori,Nomor_Seri,Nomor_Polisi,Merk,Tahun,Nilai,Kondisi,Status,Lokasi,PJ,Jam_Operasi,Kilometer\n";
+                sampleData = "Panser Import,ranpur,SN-12345,8001-V,Pindad,2024,15000000000,baik,tersedia,Kodim 0501,Sertu Agus,150,12500\n";
+                filename = "Template_Import_Aset.csv";
+            }
+            
+            const blob = new Blob([headers + sampleData], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            showToast(`Template ${isModalPersonil ? 'Personel' : 'Aset'} berhasil diunduh`, 'success');
+        }
+
+        // 2. Fungsi saat user memilih file
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                selectedImportFile = file;
+                
+                // Ubah tampilan UI agar user tahu file sudah berhasil masuk
+                const modalActive = event.target.closest('.modal');
+                if (modalActive) {
+                    modalActive.querySelector('.file-upload-text').textContent = file.name;
+                    const icon = modalActive.querySelector('.file-upload-icon');
+                    icon.className = 'fas fa-check-circle file-upload-icon'; // Ganti icon jadi centang
+                    icon.style.color = '#38a169'; // Warna hijau success
+                }
+                showToast(`File siap diimport: ${file.name}`, 'info');
+            }
+        }
+
+        // 3. Eksekusi Import (Simulasi Data Masuk)
+        // 3. Eksekusi Import (Simulasi Data Masuk ke Tabel)
+        // 3. Eksekusi Import (Membaca Data REAL dari Excel/CSV)
+        function processImport() {
+            if (!selectedImportFile) {
+                showToast('Silakan pilih atau drop file Excel/CSV terlebih dahulu!', 'error');
+                return;
+            }
+
+            const isModalPersonil = document.getElementById('modalImportPersonil') && document.getElementById('modalImportPersonil').classList.contains('active');
+            
+            showLoading('Membaca file Excel...', 0);
+            
+            // Menggunakan FileReader untuk membaca fisik file
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                try {
+                    const data = e.target.result;
+                    
+                    // Gunakan library XLSX untuk mengurai data
+                    const workbook = XLSX.read(data, { type: 'binary' });
+                    const firstSheetName = workbook.SheetNames[0]; // Ambil sheet pertama
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    
+                    // Ubah wujud Excel menjadi Array JSON JavaScript
+                    const excelData = XLSX.utils.sheet_to_json(worksheet);
+                    
+                    if (excelData.length === 0) {
+                        hideLoading();
+                        showToast('File Excel kosong atau format tidak sesuai.', 'error');
+                        return;
+                    }
+
+                    showLoading(`Memproses ${excelData.length} baris data...`, 50);
+                    
+                    setTimeout(() => {
+                        hideLoading();
+                        const username = typeof currentUser !== 'undefined' && currentUser ? currentUser.username : 'System';
+                        let successCount = 0;
+
+                        if (isModalPersonil) {
+                            // ==========================================
+                            // LOOPING IMPORT DATA PERSONEL
+                            // ==========================================
+                            let newId = DB.personil.length > 0 ? Math.max(...DB.personil.map(p => p.id)) + 1 : 1;
+                            
+                            excelData.forEach(row => {
+                                DB.personil.unshift({
+                                    id: newId++, 
+                                    nrp: row.NRP || `IMP-${Math.floor(Math.random() * 10000)}`, 
+                                    nama: row.Nama_Lengkap || 'Tanpa Nama', 
+                                    pangkat: row.Pangkat || 'bintara', 
+                                    jabatan: row.Jabatan || '-', 
+                                    satuan: row.Satuan || '-', 
+                                    status: row.Status ? row.Status.toLowerCase() : 'aktif'
+                                });
+                                successCount++;
+                            });
+                            
+                            addAuditLog(username, 'IMPORT', 'personil', `Import ${successCount} personil dari file Excel`);
+                            showToast(`Berhasil! ${successCount} Personel ditambahkan ke database.`, 'success');
+                            
+                            if (typeof closeModal === "function") closeModal('modalImportPersonil');
+                            saveData();
+                            if (typeof showPage === "function") showPage('personil');
+                            if (typeof renderPersonil === "function") renderPersonil();
+                            
+                        } else {
+                            // ==========================================
+                            // LOOPING IMPORT DATA ASET
+                            // ==========================================
+                            let newId = DB.assets.length > 0 ? Math.max(...DB.assets.map(a => a.id)) + 1 : 1;
+                            
+                            excelData.forEach(row => {
+                                // 1. Generate nomor baru secara real-time
+                                const autoInv = generateNomorInventaris();
+
+                                // 2. Masukkan ke database
+                                DB.assets.unshift({
+                                    id: newId++, 
+                                    nama: row.Nama_Aset || 'Aset Tanpa Nama', 
+                                    kategori: row.Kategori ? row.Kategori.toLowerCase() : 'ranpur', 
+                                    
+                                    // PERBAIKAN: Simpan ke dua nama variabel agar 100% terbaca oleh tabel!
+                                    noInv: autoInv, 
+                                    no_inventaris: autoInv, 
+                                    
+                                    noSeri: row.Nomor_Seri || '-', 
+                                    nopol: row.Nomor_Polisi || '-', 
+                                    jamOperasi: parseInt(row.Jam_Operasi) || 0, 
+                                    kilometer: parseInt(row.Kilometer) || 0, 
+                                    merk: row.Merk || '-', 
+                                    tahun: parseInt(row.Tahun) || new Date().getFullYear(), 
+                                    tanggalPerolehan: row.Tanggal_Perolehan || new Date().toISOString().split('T')[0], 
+                                    nilai: parseFloat(row.Nilai) || 0, 
+                                    anggaran: row.Anggaran || 'APBN', 
+                                    kondisi: row.Kondisi ? row.Kondisi.toLowerCase() : 'baik', 
+                                    status: row.Status ? row.Status.toLowerCase() : 'tersedia', 
+                                    lokasi: row.Lokasi || '-', 
+                                    pj: row.PJ || '-', 
+                                    foto: [],
+                                    loadout: []
+                                });
+                                successCount++;
+                            });
+                            
+                            addAuditLog(username, 'IMPORT', 'aset', `Import ${successCount} aset dari file Excel`);
+                            showToast(`Berhasil! ${successCount} Aset ditambahkan ke database.`, 'success');
+                            
+                            if (typeof closeModal === "function") closeModal('modalImport');
+                            saveData();
+                            if (typeof showPage === "function") showPage('daftar-aset');
+                            if (typeof renderAset === "function") renderAset();
+                            if (typeof renderDashboard === "function") renderDashboard();
+                        }
+
+                        // Reset elemen UI Upload
+                        selectedImportFile = null;
+                        document.querySelectorAll('input[type="file"]').forEach(input => input.value = '');
+                        document.querySelectorAll('.file-upload-text').forEach(el => el.textContent = 'Drag & drop atau klik untuk upload');
+                        document.querySelectorAll('.file-upload-icon').forEach(el => {
+                            el.className = 'fas fa-file-excel file-upload-icon';
+                            el.style.color = 'var(--success)';
+                        });
+
+                    }, 500); 
+                    
+                } catch (error) {
+                    hideLoading();
+                    console.error("Error parsing Excel:", error);
+                    showToast('Gagal memproses file. Pastikan itu file Excel/CSV yang valid.', 'error');
+                }
+            };
+            
+            reader.onerror = function(ex) {
+                hideLoading();
+                showToast('Gagal membaca fisik file dari komputer Anda!', 'error');
+            };
+            
+            // Mulai baca file sebagai binary string (dibutuhkan oleh SheetJS)
+            reader.readAsBinaryString(selectedImportFile);
+        }
+       
 // NOTIFICATIONS - Data dummy dan fungsi
-// ============================================
         let notifications = [
             { id: 1, title: 'Maintenance Jatuh Tempo', message: 'Tank Leopard 2RI perlu service 500 jam.', time: '5 menit lalu', type: 'warning', read: false },
             { id: 2, title: 'Mutasi Aset Pending', message: 'Permintaan mutasi Tank Scorpion 90 menunggu approval.', time: '1 jam lalu', type: 'info', read: false },
@@ -8300,8 +8953,9 @@
         }
 
         // 2. Render Stok Gudang
+        // 2. Render Stok Gudang & History
         function renderAmunisi() {
-            // Render Gudang
+            // Render Gudang (Tetap Sama)
             document.getElementById('tableStokAmunisi').innerHTML = DB.amunisi.map(a => {
                 let badge = a.stok < 50 ? 'danger' : (a.stok < 200 ? 'warning' : 'success');
                 return `<tr>
@@ -8314,20 +8968,49 @@
                 </tr>`;
             }).join('');
 
-            // Render History
+            // Render History (DIPERBARUI DENGAN FITUR INVESTIGASI)
             document.getElementById('tableHistoryAmunisi').innerHTML = DB.amunisiHistory.length === 0 ? 
-                '<tr><td colspan="7" class="text-center">Belum ada riwayat</td></tr>' :
+                '<tr><td colspan="8" style="text-align:center;">Belum ada riwayat</td></tr>' :
                 DB.amunisiHistory.map(h => {
                     let diff = h.ditembakkan - h.selongsong;
-                    let selongsongUI = diff > 0 ? `<span style="color:var(--danger); font-weight:bold;">${h.selongsong} (Hilang ${diff}) <i class="fas fa-exclamation-triangle"></i></span>` : `<span style="color:var(--success);">${h.selongsong} (Lengkap)</span>`;
+                    // Cek apakah masih dalam status investigasi (ada selisih DAN belum di-resolve)
+                    let isInvestigasi = diff > 0 && h.statusInvestigasi !== 'resolved';
+                    
+                    // UI Untuk Teks Selongsong
+                    let selongsongUI = isInvestigasi ? 
+                        `<span style="color:var(--danger); font-weight:bold;">${h.selongsong} (Hilang ${diff}) <i class="fas fa-exclamation-triangle"></i></span>` : 
+                        (h.statusInvestigasi === 'resolved' && diff > 0 ? 
+                            `<span style="color:var(--warning); font-weight:bold;">${h.selongsong} (BAP Hilang ${diff})</span>` : 
+                            `<span style="color:var(--success);">${h.selongsong} (Lengkap)</span>`
+                        );
+                    
+                    // UI Untuk Kolom Status
+                    let statusBadge = isInvestigasi ? '<span class="badge badge-danger">Investigasi</span>' : 
+                                     (h.statusInvestigasi === 'resolved' && diff > 0 ? '<span class="badge badge-info">Resolved (BAP)</span>' : '<span class="badge badge-success">Clear</span>');
+                    
+                    // Tambahan Teks Catatan Hasil Investigasi
+                    let catatanDiv = h.catatanInvestigasi ? `<div style="font-size: 11px; color: var(--info); margin-top: 4px;"><i class="fas fa-info-circle"></i> ${h.catatanInvestigasi}</div>` : '';
+
+                    // Tambahkan Tampilan Foto Bukti jika ada
+                    let fotoUI = h.fotoBukti ? 
+                        `<a href="${h.fotoBukti}" target="_blank" style="color: var(--primary); text-decoration: none; margin-right: 8px;" title="Lihat Bukti">
+                            <i class="fas fa-image"></i> Foto
+                        </a>` : '';
+                    
+                   // Gabungkan dengan Tombol Aksi
+                    let actionBtn = fotoUI + (isInvestigasi ? 
+                        `<button class="btn btn-warning btn-sm" onclick="openSelesaikanInvestigasi(${h.id})" style="font-size:11px; padding: 4px 8px;"><i class="fas fa-search"></i> Tindak Lanjut</button>` : 
+                        '');
+
                     return `<tr>
                         <td>${h.tanggal}</td>
                         <td>${h.asetNama}</td>
-                        <td>${h.giat}</td>
+                        <td>${h.giat}${catatanDiv}</td>
                         <td>${h.kaliber} (${h.lot})</td>
                         <td style="color:var(--danger); font-weight:bold;">${h.ditembakkan}</td>
                         <td>${selongsongUI}</td>
-                        <td><span class="badge badge-${diff > 0 ? 'danger' : 'success'}">${diff > 0 ? 'Investigasi' : 'Clear'}</span></td>
+                        <td>${statusBadge}</td>
+                        <td>${actionBtn}</td>
                     </tr>`;
                 }).join('');
         }
@@ -8389,7 +9072,8 @@
 
         // 6. Render Tabel Amunisi di Modal Detail Aset
         function renderAmunisiAset(asetId) {
-            const myLoadouts = DB.amunisiLoadout.filter(l => l.asetId === asetId && l.jumlah > 0);
+            // Menggunakan == agar tipe data String dan Number tetap dianggap cocok
+            const myLoadouts = DB.amunisiLoadout.filter(l => l.asetId == asetId && l.jumlah > 0);
             const tbody = document.getElementById('detailAmunisiBody');
             
             if(!tbody) return;
@@ -8415,63 +9099,6 @@
                 DB.amunisiLoadout = DB.amunisiLoadout.filter(l => l.id !== loadId); // hapus dari ranpur
                 saveData(); renderAmunisiAset(currentDetailAsetId); showToast('Dikembalikan ke Gudang', 'success');
             });
-        }
-
-        // 8. Buka Modal Lapor Tembak
-        function openLaporTembak() {
-            const myLoadouts = DB.amunisiLoadout.filter(l => l.asetId === currentDetailAsetId && l.jumlah > 0);
-            if(myLoadouts.length === 0) { showToast('Ranpur kosong, tidak ada amunisi untuk ditembakkan!', 'warning'); return; }
-            
-            const sel = document.getElementById('tembakLoadoutId');
-            sel.innerHTML = myLoadouts.map(l => {
-                const am = DB.amunisi.find(a => a.id === l.amunisiId);
-                return `<option value="${l.id}">${am.kaliber} (Tersedia: ${l.jumlah} Btr)</option>`;
-            }).join('');
-            
-            document.getElementById('tembakGiat').value = '';
-            document.getElementById('tembakKeluar').value = '';
-            document.getElementById('tembakSelongsong').value = '';
-            openModal('modalLaporTembak');
-        }
-
-        // 9. Eksekusi Lapor Tembak & Selongsong
-        function saveLaporTembak() {
-            const loadId = parseInt(document.getElementById('tembakLoadoutId').value);
-            const giat = document.getElementById('tembakGiat').value;
-            const ditembakkan = parseInt(document.getElementById('tembakKeluar').value);
-            const selongsong = parseInt(document.getElementById('tembakSelongsong').value);
-
-            if(!giat || !ditembakkan) { showToast('Lengkapi data laporan!', 'error'); return; }
-
-            const load = DB.amunisiLoadout.find(l => l.id === loadId);
-            if(ditembakkan > load.jumlah) { showToast('Jumlah tembakan melebihi stok di dalam Ranpur!', 'error'); return; }
-
-            // Potong stok di ranpur
-            load.jumlah -= ditembakkan;
-
-            // Catat ke History
-            const aset = DB.assets.find(a => a.id === currentDetailAsetId);
-            const am = DB.amunisi.find(a => a.id === load.amunisiId);
-            const newHistId = DB.amunisiHistory.length > 0 ? Math.max(...DB.amunisiHistory.map(h => h.id)) + 1 : 1;
-            
-            DB.amunisiHistory.unshift({
-                id: newHistId,
-                tanggal: new Date().toISOString().split('T')[0],
-                asetNama: `${aset.nama} [${aset.nopol}]`,
-                giat: giat,
-                kaliber: am.kaliber,
-                lot: am.lot,
-                ditembakkan: ditembakkan,
-                selongsong: selongsong
-            });
-
-            saveData(); closeModal('modalLaporTembak');
-            renderAmunisiAset(currentDetailAsetId);
-            if (selongsong < ditembakkan) {
-                showToast(`Peringatan: Selongsong kurang ${ditembakkan - selongsong}! Tercatat sebagai investigasi.`, 'error');
-            } else {
-                showToast('Laporan penembakan berhasil dicatat.', 'success');
-            }
         }
 
         function quickLogin(username, password) {
@@ -8531,6 +9158,476 @@
                 handleLogout();     // Panggil popup konfirmasi logout
             });
         }
+
+        // ============================================
+        // TINDAK LANJUT INVESTIGASI SELONGSONG
+        // ============================================
+        
+        function toggleInvCatatan() {
+            const hasil = document.getElementById('invHasil').value;
+            const group = document.getElementById('invJumlahDitemukanGroup');
+            group.style.display = (hasil === 'ditemukan') ? 'block' : 'none';
+        }
+
+        function openSelesaikanInvestigasi(id) {
+            const h = DB.amunisiHistory.find(x => x.id === id);
+            if (!h) return;
+            
+            const diff = h.ditembakkan - h.selongsong;
+            
+            document.getElementById('invHistoryId').value = h.id;
+            document.getElementById('invDiff').textContent = diff;
+            document.getElementById('invGiat').textContent = h.giat;
+            
+            const form = document.getElementById('formSelesaikanInvestigasi');
+            if(form) form.reset();
+            toggleInvCatatan(); // Sembunyikan input jumlah secara default
+            
+            openModal('modalSelesaikanInvestigasi');
+        }
+
+        function saveSelesaikanInvestigasi() {
+            const id = parseInt(document.getElementById('invHistoryId').value);
+            const hasil = document.getElementById('invHasil').value;
+            const catatan = document.getElementById('invCatatan').value;
+            const jumlahDitemukan = parseInt(document.getElementById('invJumlahDitemukan').value) || 0;
+
+            if (!hasil || !catatan) {
+                showToast('Pilih hasil dan wajib isi catatan investigasi!', 'error');
+                return;
+            }
+
+            const h = DB.amunisiHistory.find(x => x.id === id);
+            if (h) {
+                const selisihAwal = h.ditembakkan - h.selongsong;
+                
+                if (hasil === 'ditemukan') {
+                    if(jumlahDitemukan <= 0 || jumlahDitemukan > selisihAwal) {
+                        showToast(`Jumlah ditemukan tidak valid! (Maksimal ${selisihAwal})`, 'error');
+                        return;
+                    }
+                    h.selongsong += jumlahDitemukan;
+                    h.catatanInvestigasi = `[DITEMUKAN: +${jumlahDitemukan} keping] ${catatan}`;
+                } else {
+                    h.catatanInvestigasi = `[BAP HILANG: ${selisihAwal} keping] ${catatan}`;
+                }
+                
+                // Tandai kasus ini sudah ditangani
+                h.statusInvestigasi = 'resolved';
+                
+                // Tambah audit log
+                addAuditLog(currentUser ? currentUser.username : 'System', 'UPDATE', 'amunisi', `Tutup investigasi giat: ${h.giat}`);
+                
+                saveData();
+                closeModal('modalSelesaikanInvestigasi');
+                renderAmunisi();
+                
+                const sisa = h.ditembakkan - h.selongsong;
+                if (sisa === 0) {
+                    showToast('Investigasi ditutup. Selongsong lengkap 100%!', 'success');
+                } else {
+                    showToast('Investigasi ditutup dengan status BAP Hilang.', 'info');
+                }
+            }
+        }
+
+        // ============================================
+        // FUNGSI PENERIMAAN AMUNISI BARU
+        // ============================================
+        
+        // 1. Ganti tampilan form berdasarkan pilihan user
+        function toggleAmunisiInput() {
+            const jenis = document.getElementById('amuJenisInput').value;
+            document.getElementById('amuExistingGroup').style.display = (jenis === 'existing') ? 'block' : 'none';
+            document.getElementById('amuNewGroup').style.display = (jenis === 'new') ? 'block' : 'none';
+        }
+
+        // 2. Buka Modal dan Siapkan Data
+        function openTerimaAmunisi() {
+            const form = document.getElementById('formTerimaAmunisi');
+            if (form) form.reset();
+
+            // Set tanggal hari ini sebagai default
+            document.getElementById('amuTanggal').value = new Date().toISOString().split('T')[0];
+
+            // Isi dropdown dengan stok amunisi yang sudah ada di database
+            const select = document.getElementById('amuSelectExisting');
+            if (select) {
+                select.innerHTML = '<option value="">-- Pilih Kaliber & Lot yang sudah ada --</option>' + 
+                    DB.amunisi.map(a => `<option value="${a.id}">${a.kaliber} - Lot: ${a.lot} (Sisa: ${a.stok} butir)</option>`).join('');
+            }
+
+            // Pastikan tampilan awal sesuai dengan dropdown
+            document.getElementById('amuJenisInput').value = 'existing';
+            toggleAmunisiInput();
+            
+            openModal('modalTerimaAmunisi');
+        }
+
+        // 3. Simpan Data ke Database
+        function saveTerimaAmunisi() {
+            const jenis = document.getElementById('amuJenisInput').value;
+            const jumlah = parseInt(document.getElementById('amuJumlah').value);
+            const tanggal = document.getElementById('amuTanggal').value;
+            const sumber = document.getElementById('amuSumber').value;
+
+            // Validasi Input
+            if (!jumlah || jumlah <= 0 || !tanggal || !sumber) {
+                showToast('Harap lengkapi jumlah penerimaan, tanggal, dan sumber!', 'error');
+                return;
+            }
+
+            let kaliberText = "";
+            let lotText = "";
+
+            if (jenis === 'existing') {
+                // MODE 1: TAMBAH STOK
+                const amunisiId = parseInt(document.getElementById('amuSelectExisting').value);
+                if (!amunisiId) {
+                    showToast('Silakan pilih amunisi yang akan ditambah stoknya!', 'error');
+                    return;
+                }
+                
+                const amu = DB.amunisi.find(a => a.id === amunisiId);
+                if (amu) {
+                    amu.stok += jumlah; // Tambahkan stok
+                    kaliberText = amu.kaliber;
+                    lotText = amu.lot;
+                }
+            } else {
+                // MODE 2: AMUNISI BARU
+                const kaliber = document.getElementById('amuKaliber').value;
+                const lot = document.getElementById('amuLot').value;
+                const tipe = document.getElementById('amuTipe').value;
+                const kompatibilitasStr = document.getElementById('amuKompatibilitas').value;
+
+                if (!kaliber || !lot || !tipe) {
+                    showToast('Lengkapi data Kaliber, Lot, dan Tipe untuk registrasi amunisi baru!', 'error');
+                    return;
+                }
+
+                // Pecah string kompatibilitas menjadi Array
+                const kompatibilitasArr = kompatibilitasStr ? kompatibilitasStr.split(',').map(s => s.trim()) : ['Umum'];
+
+                // Push objek baru ke database amunisi
+                DB.amunisi.push({
+                    id: Date.now(),
+                    kaliber: kaliber,
+                    lot: lot,
+                    tipe: tipe,
+                    stok: jumlah,
+                    kompatibilitas: kompatibilitasArr
+                });
+                
+                kaliberText = kaliber;
+                lotText = lot;
+            }
+
+            // Catat log aktivitas user
+            const userName = currentUser ? currentUser.username : 'System';
+            addAuditLog(userName, 'TERIMA', 'amunisi', `Terima ${jumlah} butir ${kaliberText} (Lot: ${lotText}) dari ${sumber}`);
+
+            // Simpan ke local storage dan refresh tampilan
+            saveData();
+            closeModal('modalTerimaAmunisi');
+            renderAmunisi();
+            
+            showToast(`Berhasil menerima ${jumlah} butir amunisi ke dalam gudang!`, 'success');
+        }
+               
+        // ==========================================
+        // JS 1: SISTEM LAPOR TEMBAK GLOBAL (MENU AMUNISI)
+        // ==========================================
+        function openLaporTembakGlobal() {
+            document.getElementById('formLaporTembakGlobal').reset();
+            document.getElementById('ltgTanggal').value = new Date().toISOString().split('T')[0];
+            
+            const ranpur = DB.assets.filter(a => a.kategori === 'ranpur' || a.kategori === 'senjata');
+            document.getElementById('ltgAset').innerHTML = '<option value="">-- Pilih Ranpur --</option>' + 
+                ranpur.map(a => `<option value="${a.id}">${a.nama} [${a.no_inventaris || a.noInv || '-'}]</option>`).join('');
+                
+            document.getElementById('ltgAmunisi').innerHTML = '<option value="">-- Pilih Aset Dulu --</option>';
+            openModal('modalLaporTembakGlobal');
+        }
+
+        function filterAmunisiGlobal(asetId) {
+            const myLoadouts = DB.amunisiLoadout.filter(l => l.asetId == asetId && l.jumlah > 0);
+            document.getElementById('ltgAmunisi').innerHTML = myLoadouts.length === 0 ? 
+                '<option value="">-- BKP Kosong --</option>' : 
+                '<option value="">-- Pilih Amunisi --</option>' + myLoadouts.map(l => {
+                    const am = DB.amunisi.find(a => a.id == l.amunisiId);
+                    return am ? `<option value="${l.id}">${am.kaliber} (Sisa: ${l.jumlah})</option>` : '';
+                }).join('');
+        }
+
+        function saveLaporTembakGlobal() {
+            prosesLaporTembak('ltgAset', 'ltgAmunisi', 'ltgTanggal', 'ltgGiat', 'ltgDitembakkan', 'ltgSelongsong', 'modalLaporTembakGlobal');
+        }
+
+        // ==========================================
+        // JS 2: SISTEM LAPOR TEMBAK KHUSUS RANPUR (DETAIL ASET)
+        // ==========================================
+        function openLaporTembakRanpur() {
+            const idRanpur = currentDetailAsetId; 
+
+            if (!idRanpur) {
+                showToast('Sistem sedang memuat data. Silakan tutup profil aset ini dan buka kembali.', 'error');
+                return;
+            }
+
+            // 1. Reset Form SECARA MANUAL di awal (Sebelum diisi data)
+            const form = document.getElementById('formLaporTembakRanpur');
+            if (form) form.reset();
+            
+            document.getElementById('ltrTanggal').value = new Date().toISOString().split('T')[0];
+            document.getElementById('ltrAsetId').value = idRanpur;
+
+            // 2. Scraping Nama dari UI
+            const teksNamaLayar = document.getElementById('detailNama');
+            const teksInvLayar = document.getElementById('detailNoInv');
+            
+            const namaRanpur = teksNamaLayar ? teksNamaLayar.innerText : 'Nama Ranpur Tidak Terbaca';
+            const invRanpur = teksInvLayar ? teksInvLayar.innerText : '-';
+
+            // 3. Masukkan ke dalam Form
+            const inputNama = document.getElementById('ltrAsetNama');
+            if (inputNama) {
+                inputNama.value = `${namaRanpur} [${invRanpur}]`;
+            }
+
+            const selectAmunisi = document.getElementById('ltrAmunisi');
+            const myLoadouts = DB.amunisiLoadout.filter(l => l.asetId == idRanpur && l.jumlah > 0);
+            
+            if (myLoadouts.length === 0) {
+                selectAmunisi.innerHTML = '<option value="">-- BKP Kosong (Tidak ada amunisi) --</option>';
+            } else {
+                selectAmunisi.innerHTML = myLoadouts.map(l => {
+                    const am = DB.amunisi.find(a => a.id == l.amunisiId);
+                    // TAMBAHAN: Sisipkan data-max="${l.jumlah}" di dalam tag option
+                    return am ? `<option value="${l.id}" data-max="${l.jumlah}">${am.kaliber} (Sisa: ${l.jumlah} btr)</option>` : '';
+                }).join('');
+            }
+            
+            // Panggil validasi max untuk set limit di awal pembukaan modal
+            setTimeout(updateMaxPeluruRanpur, 100);
+                
+            // ==================================================
+            // 5. BUKA MODAL DENGAN PARAMETER "TRUE" (ANTI-RESET)
+            // Ini akan mencegah fungsi openModal menghapus nama yang sudah kita isi!
+            // ==================================================
+            openModal('modalLaporTembakRanpur', true); 
+        }
+
+        // ==========================================
+        // VALIDASI LAPOR TEMBAK RANPUR
+        // ==========================================
+        function updateMaxPeluruRanpur() {
+            const sel = document.getElementById('ltrAmunisi');
+            if (sel.selectedIndex < 0) return;
+            
+            // Tarik batas maksimal peluru dari atribut data-max
+            const max = sel.options[sel.selectedIndex].getAttribute('data-max');
+            if (max) {
+                document.getElementById('ltrDitembakkan').max = max; 
+                sinkronSelongsongRanpur(); // Sesuaikan otomatis jika nilai sebelumnya melebihi max baru
+            }
+        }
+
+        function sinkronSelongsongRanpur() {
+            const inputTembak = document.getElementById('ltrDitembakkan');
+            let ditembakkan = parseInt(inputTembak.value) || 0;
+            const max = parseInt(inputTembak.max) || Infinity;
+
+            // Cegah peluru keluar melebihi stok di Ranpur
+            if (ditembakkan > max) {
+                showToast(`Maksimal peluru di dalam Ranpur hanya ${max} butir!`, 'error');
+                inputTembak.value = max; // Paksa kembali ke batas maksimal
+                ditembakkan = max;
+            }
+
+            // Samakan jumlah selongsong secara otomatis (jika user belum edit manual)
+            const selongsongInput = document.getElementById('ltrSelongsong');
+            if (selongsongInput.dataset.manual !== 'true') {
+                 selongsongInput.value = ditembakkan;
+            } else {
+                cekWarningSelongsongRanpur(false);
+            }
+        }
+        
+        function cekWarningSelongsongRanpur(isManual) {
+            const selongsongInput = document.getElementById('ltrSelongsong');
+            if (isManual) selongsongInput.dataset.manual = 'true'; // Tandai bahwa user mengubah manual
+            
+            const ditembakkan = parseInt(document.getElementById('ltrDitembakkan').value) || 0;
+            let selongsong = parseInt(selongsongInput.value) || 0;
+            
+            // Cegah selongsong lebih banyak dari peluru keluar
+            if (selongsong > ditembakkan) {
+                showToast('Selongsong tidak mungkin lebih banyak dari peluru keluar!', 'error');
+                selongsongInput.value = ditembakkan; // Paksa kembali ke jumlah ditembakkan
+            }
+        }
+
+        function saveLaporTembakRanpur() {
+            prosesLaporTembak('ltrAsetId', 'ltrAmunisi', 'ltrTanggal', 'ltrGiat', 'ltrDitembakkan', 'ltrSelongsong', 'modalLaporTembakRanpur');
+        }
+
+        // ==========================================
+        // FUNGSI INTI (DIPAKAI BERSAMA OLEH KEDUA MODAL)
+        // ==========================================
+        // ==========================================
+        // FUNGSI INTI (DIPAKAI BERSAMA OLEH KEDUA MODAL)
+        // ==========================================
+        function prosesLaporTembak(idAset, idAmunisi, idTanggal, idGiat, idDitembakkan, idSelongsong, idModal) {
+            const asetId = parseInt(document.getElementById(idAset).value);
+            const loadoutId = parseInt(document.getElementById(idAmunisi).value);
+            const giat = document.getElementById(idGiat).value;
+            const ditembakkan = parseInt(document.getElementById(idDitembakkan).value);
+            const selongsong = parseInt(document.getElementById(idSelongsong).value);
+            
+            if (!asetId || !loadoutId || !giat || !ditembakkan || isNaN(selongsong)) {
+                showToast('Lengkapi semua data!', 'error'); return;
+            }
+            
+            const load = DB.amunisiLoadout.find(l => l.id == loadoutId);
+            if (!load || ditembakkan > load.jumlah) {
+                showToast('Tembakan melebihi peluru di Ranpur!', 'error'); return;
+            }
+
+            const selisih = ditembakkan - selongsong;
+
+            // FUNGSI EKSEKUSI PENYIMPANAN
+            const eksekusiSimpan = () => {
+                load.jumlah -= ditembakkan; // Potong BKP
+                const aset = DB.assets.find(a => a.id == asetId);
+                const am = DB.amunisi.find(a => a.id == load.amunisiId);
+                
+                DB.amunisiHistory.unshift({
+                    id: Date.now(), amunisiId: am.id, tanggal: document.getElementById(idTanggal).value,
+                    asetNama: `${aset.nama} [${aset.no_inventaris || aset.noInv || '-'}]`,
+                    giat: giat, kaliber: am.kaliber, lot: am.lot,
+                    ditembakkan: ditembakkan, selongsong: selongsong,
+                    statusInvestigasi: selisih > 0 ? 'investigasi' : 'clear'
+                });
+                
+                saveData();
+                closeModal(idModal);
+                
+                // Refresh UI
+                const pageDetailActive = document.getElementById('page-detail-aset') ? document.getElementById('page-detail-aset').classList.contains('active') : false;
+                if (pageDetailActive) renderAmunisiAset(asetId);
+                if (typeof currentPage !== 'undefined' && currentPage === 'amunisi') renderAmunisi();
+                if (typeof renderDashboard === 'function') renderDashboard();
+                
+                // Notifikasi akhir
+                if (selisih > 0) showToast(`Laporan disimpan. Terdapat kekurangan ${selisih} selongsong (Status: Investigasi)`, 'warning');
+                else showToast('Laporan berhasil disimpan. Selongsong lengkap.', 'success');
+            };
+
+            // ==================================================
+            // VALIDASI CEK SELISIH & DIALOG KONFIRMASI
+            // ==================================================
+            if (selisih > 0) {
+                // Munculkan popup dialog sebelum menyimpan
+                showConfirm(
+                    'Peringatan Investigasi', 
+                    `Terdapat kekurangan <b>${selisih} selongsong</b> dari total peluru yang ditembakkan.<br><br>Jika Anda melanjutkan, sistem akan otomatis membuat <b>Flag Investigasi</b> pada riwayat ini. Apakah Anda yakin data yang diinput sudah benar?`, 
+                    eksekusiSimpan // Hanya dijalankan jika user klik tombol "Ya / Konfirmasi"
+                );
+            } else {
+                eksekusiSimpan(); // Jika selongsong lengkap, langsung simpan tanpa tanya lagi
+            }
+        }
+
+        // ==========================================
+        // MODUL: PREVENTIVE MAINTENANCE ALERT
+        // ==========================================
+        function getPreventiveAlerts() {
+            const alerts = [];
+            if (!DB.assets) return alerts;
+            
+            DB.assets.forEach(a => {
+                // Abaikan jika aset sudah sedang diperbaiki atau rusak berat
+                if (a.status === 'dalam_perbaikan' || a.kondisi === 'maintenance' || a.kondisi === 'rusak_berat') return;
+                
+                // STANDAR MILITER (Bisa disesuaikan angkanya)
+                const BATAS_KM = 5000;
+                const BATAS_JAM = 300;
+
+                const km = parseInt(a.kilometer) || 0;
+                const jam = parseInt(a.jamOperasi) || 0;
+                
+                if (km >= BATAS_KM) {
+                    alerts.push({ id: a.id, nama: a.nama, identitas: a.nopol || a.no_inventaris || '-', alasan: `Jarak tempuh mencapai <b>${km} KM</b> (Batas toleransi: ${BATAS_KM} KM)` });
+                } 
+                else if (jam >= BATAS_JAM) {
+                    alerts.push({ id: a.id, nama: a.nama, identitas: a.nopol || a.no_inventaris || '-', alasan: `Mesin menyala <b>${jam} Jam</b> (Batas toleransi: ${BATAS_JAM} Jam)` });
+                }
+            });
+            return alerts;
+        }
+
+        function renderPreventiveAlerts() {
+            // 1. Cari elemen halaman dashboard (Mendeteksi berbagai kemungkinan ID)
+            const dashPage = document.getElementById('page-dashboard') || document.getElementById('dashboard');
+            
+            if (!dashPage) {
+                console.warn("Sistem tidak menemukan ID halaman Dashboard di HTML.");
+                return;
+            }
+
+            // 2. Bersihkan alert lama agar tidak menumpuk
+            const oldAlert = document.getElementById('preventive-alert-box');
+            if (oldAlert) oldAlert.remove();
+
+            // 3. Tarik data yang butuh perbaikan
+            const alerts = getPreventiveAlerts();
+            if (alerts.length === 0) return; // Jika kosong, sembunyikan kotak
+
+            // 4. Bangun Kotak UI
+            const alertDiv = document.createElement('div');
+            alertDiv.id = 'preventive-alert-box';
+            alertDiv.style.cssText = 'background: #fff3cd; border-left: 5px solid #ffc107; padding: 16px; border-radius: 8px; margin: 20px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.05); display: flex; align-items: flex-start; gap: 16px;';
+            
+            alertDiv.innerHTML = `
+                <div style="color: #856404; font-size: 28px; margin-top: 2px;">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <div style="flex: 1;">
+                    <h4 style="margin: 0 0 6px 0; color: #856404; font-size: 16px; font-weight: 700;">Peringatan Pemeliharaan Rutin!</h4>
+                    <p style="margin: 0 0 12px 0; color: #664d03; font-size: 14px;">
+                        Sistem mendeteksi <b>${alerts.length} aset</b> telah mencapai batas maksimal operasional. Segera jadwalkan Work Order (WO) pemeliharaan.
+                    </p>
+                    <ul style="margin: 0; padding-left: 20px; color: #856404; font-size: 14px; line-height: 1.8;">
+                        ${alerts.map(a => `
+                            <li>
+                                <strong style="color: #000;">${a.nama} [${a.identitas}]</strong> &mdash; ${a.alasan}
+                                <button onclick="createWOForAsset(${a.id})" class="btn btn-sm btn-danger" style="padding: 2px 10px; font-size: 11px; margin-left: 10px; border-radius: 4px; border: none; cursor: pointer;">
+                                    <i class="fas fa-tools"></i> Buat WO
+                                </button>
+                            </li>
+                        `).join('')}
+                    </ul>
+                </div>
+            `;
+
+            // 5. Suntikkan PAKSA ke baris paling atas di dalam halaman Dashboard
+            dashPage.insertBefore(alertDiv, dashPage.firstChild);
+        }
+
+        // ==========================================
+        // AUTO-HAPUS PRELOADER SAAT HALAMAN SELESAI DIMUAT
+        // (Berjalan otomatis tanpa perlu dipanggil fungsi lain)
+        // ==========================================
+        window.addEventListener('load', function() {
+            setTimeout(() => {
+                const preloader = document.getElementById('app-preloader');
+                if (preloader) {
+                    preloader.style.opacity = '0';
+                    setTimeout(() => preloader.remove(), 300); 
+                }
+            }, 100);
+        });
     </script>
 </body>
 </html>
